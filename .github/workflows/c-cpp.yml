@@ -1,4 +1,4 @@
-name: Build Proot ARM64 Static (Ultimate)
+name: Build Proot ARM64 Static (The Real Deal)
 
 on:
   workflow_dispatch:
@@ -37,19 +37,47 @@ jobs:
           wget https://www.samba.org/ftp/talloc/talloc-2.4.1.tar.gz
           tar xf talloc-2.4.1.tar.gz
 
-      - name: Compile talloc static library manually
+      - name: Create cross-answers.txt for talloc
         run: |
           cd talloc-2.4.1
-          # 编译所有必需的源文件
-          $CC $CFLAGS_BASE -I. -Ilib/replace -c talloc.c -o talloc.o
-          for src in lib/replace/*.c; do
-            $CC $CFLAGS_BASE -I. -Ilib/replace -c $src -o $(basename $src .c).o
-          done
-          # 打包静态库
-          $AR rcs libtalloc.a *.o
-          mkdir -p install/lib install/include
-          cp libtalloc.a install/lib/
-          cp talloc.h install/include/
+          cat > cross-answers.txt << 'EOF'
+          Checking uname sysname type: "Linux"
+          Checking uname machine type: "aarch64"
+          Checking uname release type: "5.10.0"
+          Checking uname version type: "#1 SMP"
+          Checking simple C program: OK
+          Checking for large file support without additional flags: OK
+          Checking for -D_FILE_OFFSET_BITS=64: OK
+          Checking for -D_LARGE_FILES: OK
+          Checking correct behavior of strtoll: OK
+          Checking for working strptime: OK
+          Checking for C99 vsnprintf: OK
+          Checking for HAVE_SHARED_MMAP: OK
+          Checking for HAVE_MREMAP: OK
+          Checking for HAVE_INCOHERENT_MMAP: NO
+          Checking for getconf LFS_CFLAGS: OK
+          Checking for getconf LFS_LDFLAGS: OK
+          Checking for getconf LFS_LIBS: OK
+          rpath library support: OK
+          -Wl,--version-script support: OK
+          EOF
+          cd ..
+
+      - name: Configure and build talloc static library using waf
+        run: |
+          cd talloc-2.4.1
+          # 使用 waf 配置交叉编译
+          CC=$CC CFLAGS="$CFLAGS_BASE" LDFLAGS="$LDFLAGS_BASE" \
+          python3 buildtools/bin/waf configure \
+            --prefix=$PWD/install \
+            --host=aarch64-linux-gnu \
+            --cross-compile \
+            --cross-answers=$PWD/cross-answers.txt \
+            --disable-python
+          # 编译
+          python3 buildtools/bin/waf build
+          # 安装到临时目录
+          python3 buildtools/bin/waf install
           cd ..
 
       - name: Build proot static
