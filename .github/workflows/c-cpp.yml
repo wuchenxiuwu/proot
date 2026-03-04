@@ -1,4 +1,4 @@
-name: Build Proot ARM64 Static (The Real Deal)
+name: Build Proot ARM64 Static (The Correct Way)
 
 on:
   workflow_dispatch:
@@ -23,8 +23,9 @@ jobs:
           echo "SYSROOT=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
           echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
           echo "AR=aarch64-linux-gnu-ar" >> $GITHUB_ENV
-          echo "CFLAGS_BASE=--sysroot=$SYSROOT -I$SYSROOT/include" >> $GITHUB_ENV
-          echo "LDFLAGS_BASE=--sysroot=$SYSROOT -L$SYSROOT/lib" >> $GITHUB_ENV
+          # 关键修复：确保 --sysroot 后面有路径
+          echo "CFLAGS_BASE=--sysroot=/usr/aarch64-linux-gnu -I/usr/aarch64-linux-gnu/include" >> $GITHUB_ENV
+          echo "LDFLAGS_BASE=--sysroot=/usr/aarch64-linux-gnu -L/usr/aarch64-linux-gnu/lib" >> $GITHUB_ENV
 
       - name: Download and install uthash.h
         run: |
@@ -37,9 +38,18 @@ jobs:
           wget https://www.samba.org/ftp/talloc/talloc-2.4.1.tar.gz
           tar xf talloc-2.4.1.tar.gz
 
-      - name: Create cross-answers.txt for talloc
+      - name: Generate cross-answers template
         run: |
           cd talloc-2.4.1
+          # 第一步：先生成模板 [citation:4]
+          CC=$CC CFLAGS="$CFLAGS_BASE" LDFLAGS="$LDFLAGS_BASE" \
+          ./configure --host=aarch64-linux-gnu --disable-python --cross-compile --cross-answers-build=cross-answers.txt
+          cd ..
+
+      - name: Edit cross-answers.txt with correct values
+        run: |
+          cd talloc-2.4.1
+          # 根据实际目标系统填写答案 [citation:2][citation:4]
           cat > cross-answers.txt << 'EOF'
           Checking uname sysname type: "Linux"
           Checking uname machine type: "aarch64"
@@ -63,21 +73,21 @@ jobs:
           EOF
           cd ..
 
-      - name: Configure and build talloc static library using waf
+      - name: Configure talloc with cross-answers
         run: |
           cd talloc-2.4.1
-          # 使用 waf 配置交叉编译
+          # 第二步：使用填好的答案进行配置 [citation:4]
           CC=$CC CFLAGS="$CFLAGS_BASE" LDFLAGS="$LDFLAGS_BASE" \
-          python3 buildtools/bin/waf configure \
-            --prefix=$PWD/install \
-            --host=aarch64-linux-gnu \
-            --cross-compile \
-            --cross-answers=$PWD/cross-answers.txt \
-            --disable-python
-          # 编译
-          python3 buildtools/bin/waf build
-          # 安装到临时目录
-          python3 buildtools/bin/waf install
+          ./configure --prefix=$PWD/install --host=aarch64-linux-gnu \
+                      --cross-compile --cross-answers=cross-answers.txt \
+                      --disable-python
+          cd ..
+
+      - name: Build and install talloc
+        run: |
+          cd talloc-2.4.1
+          make
+          make install
           cd ..
 
       - name: Build proot static
