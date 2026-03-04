@@ -1,0 +1,44 @@
+name: Build Proot ARM64 Static
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install cross-compiler and dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y gcc-aarch64-linux-gnu make libtalloc-dev libtalloc-static
+        wget https://www.samba.org/ftp/talloc/talloc-2.4.1.tar.gz
+        tar xf talloc-2.4.1.tar.gz
+        cd talloc-2.4.1
+        CC=aarch64-linux-gnu-gcc ./configure --prefix=/usr/aarch64-linux-gnu --host=aarch64-linux-gnu --disable-python
+        make
+        sudo make install
+        cd ..
+        
+    - name: Build Proot (ARM64 static)
+      run: |
+        make clean
+        make CC=aarch64-linux-gnu-gcc \
+             AR=aarch64-linux-gnu-ar \
+             LD=aarch64-linux-gnu-ld \
+             CFLAGS="-I/usr/aarch64-linux-gnu/include" \
+             LDFLAGS="-static -L/usr/aarch64-linux-gnu/lib" \
+             LDLIBS="-ltalloc"
+        
+    - name: Upload binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: proot-arm64-static
+        path: proot
