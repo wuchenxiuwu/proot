@@ -19,6 +19,8 @@ jobs:
         run: |
           git clone --recursive https://github.com/termux/proot.git
           cd proot
+          # 记录当前路径方便后续使用
+          echo "PROOT_SRC=$PWD/src" >> $GITHUB_ENV
 
       - name: Set environment variables for cross-compilation
         run: |
@@ -31,17 +33,17 @@ jobs:
           cp uthash.h /usr/aarch64-linux-gnu/include/
 
       - name: Build loader
+        working-directory: ./proot/src
         run: |
-          cd proot
           make CC=$CC AR=$AR loader
 
       - name: Build proot
+        working-directory: ./proot/src
         run: |
-          cd proot
           make CC=$CC AR=$AR proot
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           name: proot-arm64
-          path: proot/proot
+          path: proot/src/proot
