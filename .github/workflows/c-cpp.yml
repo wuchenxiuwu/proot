@@ -1,4 +1,4 @@
-name: Build Proot ARM64 Static (Debian)
+name: Build Proot ARM64 Static (Debian - Manual)
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ jobs:
     - name: Install dependencies
       run: |
         apt update
-        apt install -y wget make git crossbuild-essential-arm64 python3
+        apt install -y wget make git crossbuild-essential-arm64 python3 libc6-dev-arm64-cross
 
     - name: Checkout code
       uses: actions/checkout@v4
@@ -23,18 +23,17 @@ jobs:
         wget https://raw.githubusercontent.com/troydhanson/uthash/master/src/uthash.h
         cp uthash.h /usr/aarch64-linux-gnu/include/
 
-    - name: Build talloc static library
+    - name: Manual build talloc static library
       run: |
         wget https://www.samba.org/ftp/talloc/talloc-2.4.1.tar.gz
         tar xf talloc-2.4.1.tar.gz
         cd talloc-2.4.1
-        CC=aarch64-linux-gnu-gcc AR=aarch64-linux-gnu-ar \
-        CFLAGS="--sysroot=/usr/aarch64-linux-gnu" \
-        LDFLAGS="--sysroot=/usr/aarch64-linux-gnu" \
-        ./configure --prefix=$PWD/install --host=aarch64-linux-gnu \
-                    --disable-python
-        make
-        make install
+        # 直接编译所有 .c 文件，不运行 configure
+        aarch64-linux-gnu-gcc --sysroot=/usr/aarch64-linux-gnu -c talloc.c -o talloc.o
+        aarch64-linux-gnu-ar rcs libtalloc.a talloc.o
+        mkdir -p install/lib install/include
+        cp libtalloc.a install/lib/
+        cp talloc.h install/include/
         cd ..
 
     - name: Build Proot (ARM64 static)
