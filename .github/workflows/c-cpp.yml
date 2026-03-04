@@ -1,49 +1,47 @@
 name: Build Proot ARM64 Static
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
-    - name: Install cross-compiler and tools
+
+    - name: Install cross-compiler and full C library
       run: |
         sudo apt update
-        sudo apt install -y gcc-aarch64-linux-gnu make wget
-        
-    - name: Download uthash.h (header-only library)
+        sudo apt install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu libc6-dev-arm64-cross wget make
+
+    - name: Download uthash.h
       run: |
         wget https://raw.githubusercontent.com/troydhanson/uthash/master/src/uthash.h
-        sudo cp uthash.h /usr/local/include/
-        
+        sudo cp uthash.h /usr/aarch64-linux-gnu/include/
+
     - name: Build talloc static library for ARM64
       run: |
         wget https://www.samba.org/ftp/talloc/talloc-2.4.1.tar.gz
         tar xf talloc-2.4.1.tar.gz
         cd talloc-2.4.1
-        CC=aarch64-linux-gnu-gcc ./configure --prefix=$PWD/install --host=aarch64-linux-gnu --disable-python
+        CC=aarch64-linux-gnu-gcc AR=aarch64-linux-gnu-ar \
+        ./configure --prefix=$PWD/install --host=aarch64-linux-gnu \
+                    --disable-python --disable-rpath
         make
         make install
         cd ..
-        
+
     - name: Build Proot (ARM64 static)
       run: |
         make clean
         make CC=aarch64-linux-gnu-gcc \
              AR=aarch64-linux-gnu-ar \
-             CFLAGS="-I$PWD/talloc-2.4.1/install/include -I/usr/local/include" \
-             LDFLAGS="-static -L$PWD/talloc-2.4.1/install/lib" \
+             CFLAGS="-I$PWD/talloc-2.4.1/install/include -I/usr/aarch64-linux-gnu/include" \
+             LDFLAGS="-static -L$PWD/talloc-2.4.1/install/lib -L/usr/aarch64-linux-gnu/lib" \
              LDLIBS="-ltalloc"
-        
+
     - name: Upload binary
       uses: actions/upload-artifact@v4
       with:
