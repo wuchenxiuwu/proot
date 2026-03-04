@@ -29,6 +29,8 @@ jobs:
         tar xf talloc-2.4.1.tar.gz
         cd talloc-2.4.1
         CC=aarch64-linux-gnu-gcc AR=aarch64-linux-gnu-ar \
+        CFLAGS="--sysroot=/usr/aarch64-linux-gnu" \
+        LDFLAGS="--sysroot=/usr/aarch64-linux-gnu" \
         ./configure --prefix=$PWD/install --host=aarch64-linux-gnu \
                     --disable-python
         make
@@ -40,8 +42,8 @@ jobs:
         make clean
         make CC=aarch64-linux-gnu-gcc \
              AR=aarch64-linux-gnu-ar \
-             CFLAGS="-I$PWD/talloc-2.4.1/install/include -I/usr/aarch64-linux-gnu/include" \
-             LDFLAGS="-static -L$PWD/talloc-2.4.1/install/lib -L/usr/aarch64-linux-gnu/lib" \
+             CFLAGS="--sysroot=/usr/aarch64-linux-gnu -I$PWD/talloc-2.4.1/install/include -I/usr/aarch64-linux-gnu/include" \
+             LDFLAGS="--sysroot=/usr/aarch64-linux-gnu -static -L$PWD/talloc-2.4.1/install/lib -L/usr/aarch64-linux-gnu/lib" \
              LDLIBS="-ltalloc"
 
     - name: Upload binary
