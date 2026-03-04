@@ -1,4 +1,4 @@
-name: Build Proot ARM64 (The Real Way)
+name: Build Proot ARM64 (Final Correct)
 
 on:
   workflow_dispatch:
@@ -10,40 +10,37 @@ jobs:
       image: debian:bookworm
 
     steps:
-      - name: Install essential tools
+      - name: Enable arm64 architecture and install cross tools
         run: |
           apt update
-          apt install -y wget make git python3 crossbuild-essential-arm64
+          apt install -y wget make git python3
+          dpkg --add-architecture arm64
+          apt update
+          apt install -y crossbuild-essential-arm64 libtalloc-dev:arm64
 
       - name: Checkout proot source
         run: |
           git clone --recursive https://github.com/termux/proot.git
           cd proot
-          # 记录当前路径方便后续使用
-          echo "PROOT_SRC=$PWD/src" >> $GITHUB_ENV
 
-      - name: Set environment variables for cross-compilation
-        run: |
-          echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-          echo "AR=aarch64-linux-gnu-ar" >> $GITHUB_ENV
-
-      - name: Install uthash.h
+      - name: Install uthash.h into sysroot
         run: |
           wget https://raw.githubusercontent.com/troydhanson/uthash/master/src/uthash.h
           cp uthash.h /usr/aarch64-linux-gnu/include/
 
-      - name: Build loader
+      - name: Build loader and proot
         working-directory: ./proot/src
         run: |
-          make CC=$CC AR=$AR loader
-
-      - name: Build proot
-        working-directory: ./proot/src
-        run: |
-          make CC=$CC AR=$AR proot
+          export SYSROOT=/usr/aarch64-linux-gnu
+          export CC=aarch64-linux-gnu-gcc
+          export AR=aarch64-linux-gnu-ar
+          export CFLAGS="--sysroot=$SYSROOT -I$SYSROOT/include"
+          export LDFLAGS="--sysroot=$SYSROOT -L$SYSROOT/lib -static"
+          make loader
+          make proot
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: proot-arm64
+          name: proot-arm64-static
           path: proot/src/proot
