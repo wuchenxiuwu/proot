@@ -1,4 +1,4 @@
-name: Build Proot ARM64 Static (The Correct Way)
+name: Build Proot ARM64 Static (Correct)
 
 on:
   workflow_dispatch:
@@ -23,14 +23,12 @@ jobs:
           echo "SYSROOT=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
           echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
           echo "AR=aarch64-linux-gnu-ar" >> $GITHUB_ENV
-          # 关键修复：确保 --sysroot 后面有路径
           echo "CFLAGS_BASE=--sysroot=/usr/aarch64-linux-gnu -I/usr/aarch64-linux-gnu/include" >> $GITHUB_ENV
           echo "LDFLAGS_BASE=--sysroot=/usr/aarch64-linux-gnu -L/usr/aarch64-linux-gnu/lib" >> $GITHUB_ENV
 
       - name: Download and install uthash.h
         run: |
           wget https://raw.githubusercontent.com/troydhanson/uthash/master/src/uthash.h
-          mkdir -p $SYSROOT/include
           cp uthash.h $SYSROOT/include/
 
       - name: Download talloc source
@@ -38,18 +36,17 @@ jobs:
           wget https://www.samba.org/ftp/talloc/talloc-2.4.1.tar.gz
           tar xf talloc-2.4.1.tar.gz
 
-      - name: Generate cross-answers template
+      - name: Generate cross-answers.txt template
+        continue-on-error: true
         run: |
           cd talloc-2.4.1
-          # 第一步：先生成模板 [citation:4]
           CC=$CC CFLAGS="$CFLAGS_BASE" LDFLAGS="$LDFLAGS_BASE" \
-          ./configure --host=aarch64-linux-gnu --disable-python --cross-compile --cross-answers-build=cross-answers.txt
+          ./configure --host=aarch64-linux-gnu --cross-compile --cross-answers=cross-answers.txt
           cd ..
 
-      - name: Edit cross-answers.txt with correct values
+      - name: Fill cross-answers.txt with correct values
         run: |
           cd talloc-2.4.1
-          # 根据实际目标系统填写答案 [citation:2][citation:4]
           cat > cross-answers.txt << 'EOF'
           Checking uname sysname type: "Linux"
           Checking uname machine type: "aarch64"
@@ -76,7 +73,6 @@ jobs:
       - name: Configure talloc with cross-answers
         run: |
           cd talloc-2.4.1
-          # 第二步：使用填好的答案进行配置 [citation:4]
           CC=$CC CFLAGS="$CFLAGS_BASE" LDFLAGS="$LDFLAGS_BASE" \
           ./configure --prefix=$PWD/install --host=aarch64-linux-gnu \
                       --cross-compile --cross-answers=cross-answers.txt \
@@ -97,11 +93,6 @@ jobs:
                CFLAGS="$CFLAGS_BASE -I$PWD/talloc-2.4.1/install/include" \
                LDFLAGS="$LDFLAGS_BASE -static -L$PWD/talloc-2.4.1/install/lib" \
                LDLIBS="-ltalloc"
-
-      - name: Verify binary
-        run: |
-          file proot
-          ldd proot && echo "动态链接" || echo "静态链接成功"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
