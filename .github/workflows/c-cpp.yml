@@ -1,4 +1,4 @@
-name: Build Proot ARM64 Static (Debian - Ultimate)
+name: Build Proot ARM64 Static (Ultimate)
 
 on:
   workflow_dispatch:
@@ -10,24 +10,15 @@ jobs:
       image: debian:bookworm
 
     steps:
-      # 步骤1：安装所有可能需要的工具和库
-      - name: Install all dependencies
+      - name: Install essential tools
         run: |
           apt update
-          apt install -y \
-            wget make git python3 pkg-config \
-            crossbuild-essential-arm64 \
-            libc6-dev-arm64-cross \
-            linux-libc-dev-arm64-cross \
-            libtalloc-dev:arm64 \
-            libtalloc2:arm64 \
-            libtalloc-dev \
-            libuthash-dev \
-            autoconf automake libtool \
-            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          apt install -y wget make git python3 crossbuild-essential-arm64
 
-      # 步骤2：设置环境变量简化后续命令
-      - name: Set environment variables
+      - name: Checkout proot source
+        uses: actions/checkout@v4
+
+      - name: Set environment variables for cross-compilation
         run: |
           echo "SYSROOT=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
           echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
@@ -35,48 +26,47 @@ jobs:
           echo "CFLAGS_BASE=--sysroot=$SYSROOT -I$SYSROOT/include" >> $GITHUB_ENV
           echo "LDFLAGS_BASE=--sysroot=$SYSROOT -L$SYSROOT/lib" >> $GITHUB_ENV
 
-      - name: Checkout proot source
-        uses: actions/checkout@v4
-
-      # 步骤3：手动下载并放置 uthash.h（确保头文件存在）
-      - name: Install uthash.h
+      - name: Download and install uthash.h
         run: |
           wget https://raw.githubusercontent.com/troydhanson/uthash/master/src/uthash.h
+          mkdir -p $SYSROOT/include
           cp uthash.h $SYSROOT/include/
 
-      # 步骤4：完全手动编译 talloc 静态库（涵盖所有可能的源文件）
-      - name: Build talloc static library manually
+      - name: Download talloc source
         run: |
           wget https://www.samba.org/ftp/talloc/talloc-2.4.1.tar.gz
           tar xf talloc-2.4.1.tar.gz
-          cd talloc-2.4.1
 
-          # 编译所有 .c 文件（递归查找所有需要的源文件）
-          find . -name "*.c" -exec $CC $CFLAGS_BASE -I. -Ilib/replace -c {} \;
-          # 将所有 .o 打包成静态库
-          $AR rcs libtalloc.a $(find . -name "*.o")
-          mkdir -p $PWD/install/lib $PWD/install/include
-          cp libtalloc.a $PWD/install/lib/
-          cp talloc.h $PWD/install/include/
+      - name: Compile talloc static library manually
+        run: |
+          cd talloc-2.4.1
+          # 编译所有必需的源文件
+          $CC $CFLAGS_BASE -I. -Ilib/replace -c talloc.c -o talloc.o
+          for src in lib/replace/*.c; do
+            $CC $CFLAGS_BASE -I. -Ilib/replace -c $src -o $(basename $src .c).o
+          done
+          # 打包静态库
+          $AR rcs libtalloc.a *.o
+          mkdir -p install/lib install/include
+          cp libtalloc.a install/lib/
+          cp talloc.h install/include/
           cd ..
 
-      # 步骤5：编译 proot（静态链接）
       - name: Build proot static
         run: |
           make clean
           make CC=$CC AR=$AR \
                CFLAGS="$CFLAGS_BASE -I$PWD/talloc-2.4.1/install/include" \
                LDFLAGS="$LDFLAGS_BASE -static -L$PWD/talloc-2.4.1/install/lib" \
-               LDLIBS="-ltalloc -lpthread -ldl"
+               LDLIBS="-ltalloc"
 
-      # 步骤6：验证并上传
-      - name: Check binary
+      - name: Verify binary
         run: |
           file proot
-          ldd proot || echo "静态链接成功"
+          ldd proot && echo "动态链接" || echo "静态链接成功"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: proot-arm64-static-ultimate
+          name: proot-arm64-static
           path: proot
