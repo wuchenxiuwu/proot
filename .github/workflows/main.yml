@@ -58,8 +58,7 @@ jobs:
 
       - name: Configure Mesa with meson
         run: |
-          meson setup build-android mesa \
-            --cross-file=$GITHUB_WORKSPACE/android-aarch64.txt \
+          meson setup --cross-file=$GITHUB_WORKSPACE/android-aarch64.txt \
             -D platforms=drm \
             -D gallium-drivers=panfrost \
             -D vulkan-drivers=panfrost \
@@ -72,7 +71,8 @@ jobs:
             -D shared-glapi=enabled \
             -D gles1=disabled \
             -D gles2=enabled \
-            -D opengl=false
+            -D opengl=false \
+            build-android mesa
 
       - name: Compile Mesa
         run: |
