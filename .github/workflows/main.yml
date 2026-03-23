@@ -59,7 +59,9 @@ jobs:
       - name: Configure Mesa with meson
         run: |
           cd mesa
-          meson setup build-android \
+          pwd
+          ls -la
+          meson setup build-android . \
             --cross-file=$GITHUB_WORKSPACE/android-aarch64.txt \
             -D platforms=drm \
             -D gallium-drivers=panfrost \
